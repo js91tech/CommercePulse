@@ -135,7 +135,7 @@ model ResearchReport {
   summary               String
   sources               String         @default("[]")
   monthlyTrend          String         @default("[]")
-  usedLive          Boolean        @default(false)
+  usedLiveData          Boolean        @default(false)
   usedLlm               Boolean        @default(false)
   productId             String?
   product               Product?       @relation(fields: [productId], references: [id])

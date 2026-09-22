@@ -18,14 +18,29 @@ Live marketplace scraping of Amazon / TikTok / Etsy is intentionally **not** imp
 
 - Next.js 15 (App Router, Server Actions)
 - Tailwind CSS + shadcn/ui
-- Prisma ORM (SQLite locally, PostgreSQL-ready)
+- Prisma ORM + PostgreSQL (Neon on Vercel, or Docker locally)
 - OpenAI GPT-4o / Anthropic Claude for optional narrative summaries
 - Cheerio for public RSS; SerpAPI when `SERPAPI_KEY` is set
 
 ## Local setup
 
+Postgres is required. The fastest local option is Docker:
+
 ```bash
+docker compose up db -d
 cp .env.example .env
+```
+
+In `.env`, use the Docker URLs (or a Neon non-pooling URL for both values):
+
+```
+DATABASE_URL="postgresql://commercepulse:commercepulse@localhost:5432/commercepulse"
+DIRECT_URL="postgresql://commercepulse:commercepulse@localhost:5432/commercepulse"
+```
+
+Then:
+
+```bash
 npm install
 npm run db:setup
 npm run dev
@@ -33,7 +48,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-`npm run db:setup` generates the Prisma client, creates `prisma/dev.db`, and seeds products, suppliers, and sample research reports.
+`npm run db:setup` generates the Prisma client, pushes the schema, and seeds products, suppliers, and sample research reports.
 
 ### Optional keys (`.env`)
 
@@ -70,31 +85,27 @@ Suggested path:
 
 1. **GitHub** for source.
 2. **Vercel** for the web app (hobby plan is enough for a demo).
-3. **Neon Postgres** when you outgrow SQLite.
+3. **Neon Postgres** via Vercel Storage (or neon.tech).
 
-### Vercel + Neon (recommended)
+### Vercel + Neon (required for production)
 
-1. Create a project at [neon.tech](https://neon.tech) and copy the pooled `DATABASE_URL`.
-2. In `prisma/schema.prisma`, change the datasource to:
+Prisma is already on PostgreSQL with `DATABASE_URL` + `DIRECT_URL`. `npm run build` runs `prisma generate && prisma db push && next build --turbopack`, so the schema is applied during each Vercel build.
 
-```prisma
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-```
+1. Import this repository in Vercel (root directory = repo root).
+2. In the Vercel project: **Storage → Create Database → Neon**.
+3. Copy the Neon **non-pooling** (direct) connection string.
+4. Set both env vars to that same non-pooling URL:
+   - `DATABASE_URL`
+   - `DIRECT_URL`
+5. Optional env vars: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `SERPAPI_KEY`.
+6. Deploy. After the first successful build, run `npx prisma db seed` against Neon (or hit `/api/research` to generate reports).
 
-3. Import this repository in Vercel (root directory = repo root).
-4. Set env vars: `DATABASE_URL`, optional `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `SERPAPI_KEY`.
-5. Build command: `npx prisma generate && npx prisma db push && npm run build`.
-6. After the first deploy, run `npx prisma db seed` against Neon (or hit `/api/research` to generate reports).
-
-SQLite (`file:./dev.db`) is for local demo only. Serverless hosts cannot keep a writable SQLite file.
+You can later point `DATABASE_URL` at Neon’s pooled URL and keep `DIRECT_URL` on the non-pooling URL. Until then, using the non-pooling URL for both is the simplest setup.
 
 ### Other hosts
 
 - **Railway / Render / Fly.io** — Next.js app + a Postgres addon. Use `npm run start` after `npm run build`.
-- **Docker** — `docker compose up db` for Postgres, then point `DATABASE_URL` at `postgresql://commercepulse:commercepulse@localhost:5432/commercepulse`.
+- **Docker** — `docker compose up db` for Postgres, then point `DATABASE_URL` and `DIRECT_URL` at `postgresql://commercepulse:commercepulse@localhost:5432/commercepulse`.
 
 ## API
 
@@ -115,5 +126,5 @@ SQLite (`file:./dev.db`) is for local demo only. Serverless hosts cannot keep a 
 npm run dev          # Next.js on :3000
 npm run db:setup     # generate + push + seed
 npm run lint
-npm run build
+npm run build        # generate + db push + Next.js (used on Vercel)
 ```
